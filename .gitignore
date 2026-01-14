@@ -1,0 +1,25 @@
+cat <<EOF > .gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+model/venv/
+
+# ML artifacts
+*.pth
+*.pt
+*.onnx
+
+# Datasets
+data/
+datasets/
+model/Gopro/
+
+# OS
+.DS_Store
+EOF
