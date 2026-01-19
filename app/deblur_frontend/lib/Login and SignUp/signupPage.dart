@@ -1,3 +1,5 @@
+import 'package:deblur_frontend/Login%20and%20SignUp/otpVerifyPage.dart';
+import 'package:deblur_frontend/toastMessage.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -21,7 +23,12 @@ class _SignupPage extends State<SignupPage>{
       final baseUrl = dotenv.env['SERVER_URL'];
       Response response;
       response = await dio.post("${baseUrl}/signup",data: {"email": emailController.text.trim(), "password":passwordController.text.trim()});
-      print(response.data.toString());
+      print(response.data.toString() == "success");
+      if (response.data.toString() == "success"){
+        Navigator.push(context, MaterialPageRoute(builder: (context) => OtpverifyPage(email: emailController.text.trim(),)));
+      }else{
+        showSnackBar(context, response.data["error"].toString(),color: Colors.red);
+      }
     }catch(err){
       print(err);
     }
