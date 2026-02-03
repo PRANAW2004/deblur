@@ -9,14 +9,27 @@ import {
   ConfirmForgotPasswordCommand
 } from "@aws-sdk/client-cognito-identity-provider";
 import dotenv from "dotenv";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { v4 as uuidv4 } from "uuid";
+import { SageMakerRuntimeClient, InvokeEndpointAsyncCommand } from "@aws-sdk/client-sagemaker-runtime";
+import multer from "multer";
+import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+
 
 dotenv.config();
-
-console.log("Client ID:", process.env.COGNITO_CLIENT_ID);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+const s3 = new S3Client({ region: "us-east-1" });
+const sm = new SageMakerRuntimeClient({ region: "us-east-1" });
+
+const INPUT_BUCKET = "deblur-input-bucket";
+const OUTPUT_BUCKET = "deblur-output-bucket";
+const ENDPOINT_NAME = "deblur-async-endpoint";
 
 const client = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
@@ -24,28 +37,28 @@ const client = new CognitoIdentityProviderClient({
 
 const port = process.env.PORT || 8000;
 
-app.get("/", (req,res) => {
-    res.send("The server is up and running");
+app.get("/", (req, res) => {
+  res.send("The server is up and running");
 })
 
-app.post("/signup", async (req,res) => {
-  try{
-      const {email, password} = req.body;
-    console.log(email,password);
+app.post("/signup", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log(email, password);
     const command = new SignUpCommand({
-    ClientId: process.env.COGNITO_CLIENT_ID,
-    Username: email,
-    Password: password,
-    UserAttributes: [
-      {
-        Name: "email",
-        Value: email,
-      },
-    ],
-  });
-  const SignUp = await client.send(command);
-  res.send("success");
-  }catch(err){
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: email,
+      Password: password,
+      UserAttributes: [
+        {
+          Name: "email",
+          Value: email,
+        },
+      ],
+    });
+    const SignUp = await client.send(command);
+    res.send("success");
+  } catch (err) {
     let message = "Something went wrong";
     console.log(err.name);
     switch (err.name) {
@@ -69,7 +82,7 @@ app.post("/signup", async (req,res) => {
     console.log(message);
     res.json({ error: message });
   }
-  
+
 });
 
 app.post("/otpverify", async (req, res) => {
@@ -122,7 +135,7 @@ app.post("/otpverify", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(email,password);
+    console.log(email, password);
 
     if (!email || !password) {
       return res.status(400).json({
@@ -246,7 +259,93 @@ app.post("/confirm-forgot-password", async (req, res) => {
   }
 });
 
+const waitForS3Object = async (bucket, key, timeoutMs = 60000) => {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const obj = await s3.send(
+        new GetObjectCommand({ Bucket: bucket, Key: key })
+      );
+      return obj; // SUCCESS
+    } catch (err) {
+      if (err.name !== "NoSuchKey") {
+        console.error("S3 error:", err.name);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  throw new Error("Timed out waiting for SageMaker async output");
+};
+
+
+const parseS3Uri = (uri) => {
+  const [, , bucket, ...keyParts] = uri.split("/");
+  return {
+    bucket,
+    key: keyParts.join("/"),
+  };
+};
+
+
+app.post("/deblur", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Image is required" });
+    }
+
+    const imageId = uuidv4();
+    const inputKey = `inputs/${imageId}.jpg`;
+    const outputKey = `async-results/${imageId}.out`;
+
+    // Upload input image
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: INPUT_BUCKET,
+        Key: inputKey,
+        Body: req.file.buffer,
+        ContentType: "image/jpeg",
+      })
+    );
+
+    // Invoke async endpoint
+    const response = await sm.send(
+      new InvokeEndpointAsyncCommand({
+        EndpointName: "deblur-async-endpoint-main-v1v2",
+        InputLocation: `s3://${INPUT_BUCKET}/${inputKey}`,
+        ContentType: "image/jpeg",
+      })
+    );
+    
+
+    const outputS3Uri = response.OutputLocation;
+
+    const { bucket, key } = parseS3Uri(outputS3Uri);
+
+    // Wait for EXACT file SageMaker creates
+    const result = await waitForS3Object(bucket, key);
+
+    const chunks = [];
+    for await (const chunk of result.Body) {
+      chunks.push(chunk);
+    }
+
+    const imageBuffer = Buffer.concat(chunks);
+
+
+    // Send image
+    res.setHeader("Content-Type", "image/jpeg");
+    res.send(imageBuffer);
+
+  } catch (err) {
+    console.error("Async deblur error:", err);
+    res.status(500).json({ error: "Async deblur failed" });
+  }
+});
+
+
 
 app.listen(port, () => {
-    console.log("Server running on port 8000");
+  console.log("Server running on port 8000");
 });
