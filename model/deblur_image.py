@@ -29,9 +29,26 @@ def deblur_image(model, img_path, device):
 
 
 if __name__ == "__main__":
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = UNet().to(device)
-    model.load_state_dict(torch.load("deblur_unet.pth", map_location=device))
+    # model.load_state_dict(torch.load("deblur_unet.pth", map_location=device))
+#     model.load_state_dict(
+#     torch.load(
+#         "deblur_unet.pth",
+#         map_location=device,
+#         weights_only=False
+#     )
+# )
+    state_dict = torch.load(
+        "deblur_unet.pth",
+        map_location=device,
+        weights_only=True   # ← IMPORTANT
+    )
 
-    deblur_image(model, "./Gopro/test/blur/1.png", device)
+    model.load_state_dict(state_dict)
+    model.eval()
+
+
+    deblur_image(model, "/home/pranaw-otthi/Videos/scanon-1770093759362.png", device)
