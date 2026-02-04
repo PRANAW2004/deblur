@@ -23,3 +23,5 @@ model/Gopro/
 # OS
 .DS_Store
 EOF
+
+.env
