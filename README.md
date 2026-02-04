@@ -40,3 +40,13 @@ The model learns to restore sharp images from blurred inputs using supervised de
 - The output image is stored in the S3 bucket which is then fetched by the Server and sends it to the frontend mobile app.
 - AWS Cognito is used for authenticating the user.
 
+# ARCHITECTURE
+<img src="./architecture.png" alt="Architecture" width="100%"/>
+
+# HOW TO RUN
+
+- clone the repo using 'git clone'
+- inside the app there are 2 folders containing the frontend and backend code.
+- Inside the frontend folder install the flutter dependencies with the 'flutter pub get' command.
+- Inside the backend folder install the backend dependencies with 'npm install' command.
+- To run the machine learning model locally in your system, packages like torch, torchvision, Pillow and boto3 has to be installed.
