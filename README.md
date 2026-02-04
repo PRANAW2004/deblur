@@ -43,10 +43,16 @@ The model learns to restore sharp images from blurred inputs using supervised de
 # ARCHITECTURE
 <img src="./architecture.png" alt="Architecture" width="100%"/>
 
-# HOW TO RUN
+# SETUP
 
 - clone the repo using 'git clone'
 - inside the app there are 2 folders containing the frontend and backend code.
 - Inside the frontend folder install the flutter dependencies with the 'flutter pub get' command.
 - Inside the backend folder install the backend dependencies with 'npm install' command.
 - To run the machine learning model locally in your system, packages like torch, torchvision, Pillow and boto3 has to be installed.
+
+# HOW TO RUN
+
+- start the flutter frontend with the 'flutter run' command (Note: android emulator or Physical device should be connected to the system)
+- start the backend server using 'node index.js' command. (Note: AWS SDK has to be installed and configured in the local system)
+  
